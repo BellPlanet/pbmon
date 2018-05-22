@@ -2,8 +2,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/BellPlanet/pbmon/tpl"
 	"github.com/djherbis/stream"
@@ -23,6 +25,10 @@ func main() {
 	flag.StringVar(&httpAddr, "httpAddr", ":12223", "http listen address")
 
 	flag.Parse()
+
+	if port := os.Getenv("PORT"); port != "" {
+		httpAddr = fmt.Sprintf(":%s", port)
+	}
 
 	setupLogger()
 	startServer(httpAddr)

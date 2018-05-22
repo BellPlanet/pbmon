@@ -16,3 +16,11 @@ tpl:
 	    -prefix=tpl \
 	    -tags build_bindata \
 	    tpl/*.html
+
+.PHONY: dev
+dev:
+	GIN_BUILD_ARGS="-tags !build_bindata" gin \
+		       -d cmd/pbmon/ \
+		       --path . \
+		       -i --all \
+		       -b bin/gin-bin run
