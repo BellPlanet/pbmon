@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 
@@ -16,6 +18,7 @@ import (
 
 var (
 	httpAddr      string
+	udpAddr       string
 	pbFile        string
 	pbMessageType string
 )
@@ -26,6 +29,7 @@ var (
 
 func main() {
 	flag.StringVar(&httpAddr, "httpAddr", ":12223", "http listen address")
+	flag.StringVar(&udpAddr, "udpAddr", ":12224", "udp listen address")
 	flag.StringVar(&pbFile, "pbFile", "pb.proto", "protobuf file")
 	flag.StringVar(&pbMessageType, "pbMessageType", "Envelope", "protobuf root messge type")
 
@@ -33,6 +37,10 @@ func main() {
 
 	if port := os.Getenv("PORT"); port != "" {
 		httpAddr = fmt.Sprintf(":%s", port)
+	}
+
+	if udp := os.Getenv("UDPADDRESS"); udp != "" {
+		udpAddr = udp
 	}
 
 	if file := os.Getenv("PBFILE"); file != "" {
@@ -45,7 +53,7 @@ func main() {
 
 	setupLogger()
 	pb := mustReadPbFile()
-	startServer(httpAddr, pb, pbMessageType)
+	startServer(httpAddr, udpAddr, pb, pbMessageType)
 }
 
 func setupLogger() {
@@ -60,27 +68,41 @@ func mustReadPbFile() string {
 	return string(c)
 }
 
-func startServer(httpAddr, pb, pbMessageType string) {
-	server := NewServer(httpAddr, pb, pbMessageType)
+func startServer(httpAddr, udpAddr, pb, pbMessageType string) {
+	server, err := NewServer(httpAddr, udpAddr, pb, pbMessageType)
+	if err != nil {
+		panic(err)
+	}
 
 	server.Start()
 }
 
 type Server struct {
+	stream *stream.Stream
+
 	httpMux    *mux.Router
 	httpServer *http.Server
 	upgrader   *websocket.Upgrader
-	stream     *stream.Stream
+
+	udpAddr *net.UDPAddr
 
 	pb            string
 	pbMessageType string
 }
 
-func NewServer(httpAddr, pb, pbMessageType string) *Server {
+func NewServer(httpAddr, udpAddr, pb, pbMessageType string) (*Server, error) {
+	uAddr, err := net.ResolveUDPAddr("udp", udpAddr)
+	if err != nil {
+		return nil, err
+	}
+
 	server := &Server{
+		stream: stream.NewMemStream(),
+
 		httpMux:  mux.NewRouter(),
 		upgrader: &websocket.Upgrader{},
-		stream:   stream.NewMemStream(),
+
+		udpAddr: uAddr,
 
 		pb:            pb,
 		pbMessageType: pbMessageType,
@@ -96,10 +118,20 @@ func NewServer(httpAddr, pb, pbMessageType string) *Server {
 	server.httpMux.HandleFunc("/proto/settings", server.HandleProtoSettings).Methods("GET")
 	server.httpMux.HandleFunc("/", server.HandleIndex).Methods("GET")
 
-	return server
+	return server, nil
 }
 
 func (s Server) Start() error {
+	udpConn, err := net.ListenUDP(s.udpAddr.Network(), s.udpAddr)
+	if err != nil {
+		return err
+	}
+	go func(udpConn *net.UDPConn, stream *stream.Stream) {
+		log.Printf("udp server started at %s", s.udpAddr)
+
+		io.Copy(stream, udpConn)
+	}(udpConn, s.stream)
+
 	log.Printf("http server started at %s", s.httpServer.Addr)
 	return s.httpServer.ListenAndServe()
 }
@@ -118,8 +150,6 @@ func (s Server) HandleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer reader.Close()
-
-	c.WriteMessage(websocket.BinaryMessage, []byte("hello"))
 
 	buf := make([]byte, 32*1024)
 	for {
