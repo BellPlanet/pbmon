@@ -5,6 +5,43 @@
   <title>pbmon</title>
 </head>
 <body>
-  hello, world
+  use the Console, Luke!
+  <script src="https://unpkg.com/jquery@3.3.1/dist/jquery.js"></script>
+  <script src="https://unpkg.com/protobufjs@6.8.6/dist/protobuf.js"></script>
+  <script>
+    (function() {
+      const logStream = (level, o) => {
+        const now = new Date
+        console.log(o, ['[', level, ' ', now.toString(), '] '].join(''));
+      };
+
+      const loadProto = protobuf.load('/proto');
+      const loadProtoSettings = $.get('/proto/settings');
+
+      Promise.all([loadProto, loadProtoSettings])
+        .then((p) => {
+          const [root, settings] = p;
+          logStream('info', 'proto loaded');
+
+          const Message = root.lookupType(settings.message_type);
+          if (!Message) {
+            logStream('error', [settings.message_type, ' not found'].join(''));
+            return;
+          }
+
+          const wshost = ['ws://', location.host, '/stream'].join('');
+          const ws = new WebSocket(wshost);
+
+          ws.onopen = () => {
+            logStream('info', 'connected');
+          };
+
+          ws.onmessage = (raw) => {
+            const message = Message.decode(new protobuf.Reader(raw.data));
+            logStream('info', message);
+          };
+        });
+    })();
+  </script>
 </body>
 </html>
