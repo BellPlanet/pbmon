@@ -153,14 +153,14 @@ func (s Server) HandleStream(w http.ResponseWriter, r *http.Request) {
 
 	buf := make([]byte, 32*1024)
 	for {
-		_, err := reader.Read(buf)
+		n, err := reader.Read(buf)
 		if err != nil {
 			log.Printf("read stream failed: %+v", err)
 			return
 		}
 
 		// TODO: read meta
-		if err := c.WriteMessage(websocket.BinaryMessage, buf); err != nil {
+		if err := c.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
 			log.Printf("write message failed: %+v", err)
 			return
 		}
