@@ -31,14 +31,16 @@
 
           const wshost = ['ws://', location.host, '/stream'].join('');
           const ws = new WebSocket(wshost);
+          ws.binaryType = 'arraybuffer';
 
           ws.onopen = () => {
             logStream('info', 'connected');
           };
 
           ws.onmessage = (raw) => {
-            const message = Message.decode(new protobuf.Reader(raw.data));
-            logStream('info', message);
+            const buf = new Uint8Array(raw.data);
+            const message = Message.decode(protobuf.Reader.create(buf));
+            console.log(message);
           };
         });
     })();
