@@ -24,3 +24,7 @@ dev:
 		       --path . \
 		       -i --all \
 		       -b bin/gin-bin run
+
+.PHONY: docker
+docker:
+	docker build . -f docker/Dockerfile -t bellcode/pbmon

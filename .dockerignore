@@ -1,0 +1,4 @@
+docker
+bin
+devpb
+*.proto
