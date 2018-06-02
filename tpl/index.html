@@ -6,6 +6,15 @@
 </head>
 <body>
   use the Console, Luke!
+  <div>
+    <textarea id="proto" name="proto" cols="30" rows="10" placeholder="proto paste here"></textarea>
+  </div>
+  <div>
+    <input type="text" name="messageType" placeholder="message type">
+  </div>
+  <div>
+    <input type="button" name="submit" value="submit">
+  </div>
   <script src="https://unpkg.com/jquery@3.3.1/dist/jquery.js"></script>
   <script src="https://unpkg.com/protobufjs@6.8.6/dist/protobuf.js"></script>
   <script>
@@ -15,34 +24,39 @@
         console.log(o, ['[', level, ' ', now.toString(), '] '].join(''));
       };
 
-      const loadProto = protobuf.load('/proto');
-      const loadProtoSettings = $.get('/proto/settings');
+      const proto$ = $('[name=proto]');
+      const messageType$ = $('[name=messageType]');
+      const submit$ = $('[name=submit]');
 
-      Promise.all([loadProto, loadProtoSettings])
-        .then((p) => {
-          const [root, settings] = p;
-          logStream('info', 'proto loaded');
+      submit$.click((e) => {
+        e.preventDefault();
 
-          const Message = root.lookupType(settings.message_type);
-          if (!Message) {
-            logStream('error', [settings.message_type, ' not found'].join(''));
-            return;
-          }
+        const proto = proto$.val();
+        const messageType = messageType$.val();
 
-          const wshost = ['ws://', location.host, '/stream'].join('');
-          const ws = new WebSocket(wshost);
-          ws.binaryType = 'arraybuffer';
+        const root = protobuf.parse(proto).root;
+        const Message = root.lookupType(messageType);
+        if (!Message) {
+          logStream('error', [messageType, ' not found'].join(''));
+          return;
+        }
 
-          ws.onopen = () => {
-            logStream('info', 'connected');
-          };
+        logStream('info', Message);
 
-          ws.onmessage = (raw) => {
-            const buf = new Uint8Array(raw.data);
-            const message = Message.decode(protobuf.Reader.create(buf));
-            console.log(message);
-          };
-        });
+        const wshost = ['ws://', location.host, '/stream'].join('');
+        const ws = new WebSocket(wshost);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+          logStream('info', 'connected');
+        };
+
+        ws.onmessage = (raw) => {
+          const buf = new Uint8Array(raw.data);
+          const message = Message.decode(protobuf.Reader.create(buf));
+          logStream('info', message);
+        };
+      });
     })();
   </script>
 </body>

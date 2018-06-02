@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -30,8 +29,6 @@ var (
 func main() {
 	flag.StringVar(&httpAddr, "httpAddr", ":12223", "http listen address")
 	flag.StringVar(&udpAddr, "udpAddr", ":12224", "udp listen address")
-	flag.StringVar(&pbFile, "pbFile", "pb.proto", "protobuf file")
-	flag.StringVar(&pbMessageType, "pbMessageType", "Envelope", "protobuf root messge type")
 
 	flag.Parse()
 
@@ -43,33 +40,16 @@ func main() {
 		udpAddr = udp
 	}
 
-	if file := os.Getenv("PBFILE"); file != "" {
-		pbFile = file
-	}
-
-	if mt := os.Getenv("PBMESSAGE"); mt != "" {
-		pbMessageType = mt
-	}
-
 	setupLogger()
-	pb := mustReadPbFile()
-	startServer(httpAddr, udpAddr, pb, pbMessageType)
+	startServer(httpAddr, udpAddr)
 }
 
 func setupLogger() {
 	log.SetFlags(log.LstdFlags)
 }
 
-func mustReadPbFile() string {
-	c, err := ioutil.ReadFile(pbFile)
-	if err != nil {
-		panic(err)
-	}
-	return string(c)
-}
-
-func startServer(httpAddr, udpAddr, pb, pbMessageType string) {
-	server, err := NewServer(httpAddr, udpAddr, pb, pbMessageType)
+func startServer(httpAddr, udpAddr string) {
+	server, err := NewServer(httpAddr, udpAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -85,12 +65,9 @@ type Server struct {
 	upgrader   *websocket.Upgrader
 
 	udpAddr *net.UDPAddr
-
-	pb            string
-	pbMessageType string
 }
 
-func NewServer(httpAddr, udpAddr, pb, pbMessageType string) (*Server, error) {
+func NewServer(httpAddr, udpAddr string) (*Server, error) {
 	uAddr, err := net.ResolveUDPAddr("udp", udpAddr)
 	if err != nil {
 		return nil, err
@@ -103,9 +80,6 @@ func NewServer(httpAddr, udpAddr, pb, pbMessageType string) (*Server, error) {
 		upgrader: &websocket.Upgrader{},
 
 		udpAddr: uAddr,
-
-		pb:            pb,
-		pbMessageType: pbMessageType,
 	}
 
 	server.httpServer = &http.Server{
@@ -114,8 +88,6 @@ func NewServer(httpAddr, udpAddr, pb, pbMessageType string) (*Server, error) {
 	}
 
 	server.httpMux.HandleFunc("/stream", server.HandleStream).Methods("GET")
-	server.httpMux.HandleFunc("/proto", server.HandleProto).Methods("GET")
-	server.httpMux.HandleFunc("/proto/settings", server.HandleProtoSettings).Methods("GET")
 	server.httpMux.HandleFunc("/", server.HandleIndex).Methods("GET")
 
 	return server, nil
@@ -165,16 +137,6 @@ func (s Server) HandleStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-}
-
-func (s Server) HandleProto(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/vnd.google.protobuf")
-	w.Write([]byte(s.pb))
-}
-
-func (s Server) HandleProtoSettings(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(fmt.Sprintf(`{"message_type": "%s"}`, s.pbMessageType)))
 }
 
 func (s Server) HandleIndex(w http.ResponseWriter, r *http.Request) {
