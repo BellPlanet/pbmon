@@ -24,16 +24,14 @@
         console.log(o, ['[', level, ' ', now.toString(), '] '].join(''));
       };
 
+      const keyProto = 'pbmon:proto';
+      const keyMessageType = 'pbmon:messageType';
+
       const proto$ = $('[name=proto]');
       const messageType$ = $('[name=messageType]');
       const submit$ = $('[name=submit]');
 
-      submit$.click((e) => {
-        e.preventDefault();
-
-        const proto = proto$.val();
-        const messageType = messageType$.val();
-
+      const start = (proto, messageType) => {
         const root = protobuf.parse(proto).root;
         const Message = root.lookupType(messageType);
         if (!Message) {
@@ -56,7 +54,27 @@
           const message = Message.decode(protobuf.Reader.create(buf));
           logStream('info', message);
         };
+      };
+
+      submit$.click((e) => {
+        e.preventDefault();
+
+        const proto = proto$.val();
+        const messageType = messageType$.val();
+
+        localStorage.setItem(keyProto, proto);
+        localStorage.setItem(keyMessageType, messageType);
+
+        location.href = '';
       });
+
+      const proto = localStorage.getItem(keyProto);
+      const messageType = localStorage.getItem(keyMessageType);
+      if (proto && messageType) {
+        proto$.val(proto);
+        messageType$.val(messageType);
+        start(proto, messageType);
+      }
     })();
   </script>
 </body>
