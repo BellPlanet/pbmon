@@ -5,3 +5,7 @@
 ## tags
 
 - 2018060201
+
+## LICENSE
+
+MIT
