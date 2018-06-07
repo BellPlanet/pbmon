@@ -41,7 +41,8 @@
 
         logStream('info', Message);
 
-        const wshost = ['ws://', location.host, '/stream'].join('');
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wshost = [protocol, '//', location.host, '/stream'].join('');
         const ws = new WebSocket(wshost);
         ws.binaryType = 'arraybuffer';
 
