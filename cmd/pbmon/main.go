@@ -76,8 +76,12 @@ func NewServer(httpAddr, udpAddr string) (*Server, error) {
 	server := &Server{
 		stream: stream.NewMemStream(),
 
-		httpMux:  mux.NewRouter(),
-		upgrader: &websocket.Upgrader{},
+		httpMux: mux.NewRouter(),
+		upgrader: &websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		},
 
 		udpAddr: uAddr,
 	}
